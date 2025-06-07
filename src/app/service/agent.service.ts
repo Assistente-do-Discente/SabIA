@@ -13,6 +13,7 @@ dotenv.config();
 
 export class AgentService {
     static readonly urlAD = process.env.URL_API_AD || "http://localhost:8080/api";
+    static readonly urlLogin = process.env.URL_LOGIN_AD || "http://localhost:8080/login";
 
     public static async handleMessage(message: string, tools: Array<ToolConfig>, externalID: string) {
         let agent = await this.createAgent(tools, externalID)
@@ -31,7 +32,7 @@ export class AgentService {
         if (!externalID) {
             messages.push({
                 role: "system",
-                content: "O usuário não está autenticado, por favor peça para ele se autenticar, acessando o link: " + this.urlAD
+                content: "O usuário não está autenticado, por favor peça para ele se autenticar, acessando o link: " + this.urlLogin
             })
         }
 
