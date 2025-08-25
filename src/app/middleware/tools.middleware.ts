@@ -1,32 +1,32 @@
-import {CachedTools} from "../model/agent-config.dto";
+import {ToolConfig} from "../model/agent-config.dto";
 import * as dotenv from "dotenv";
-dotenv.config();
+import {ENV} from "../config/env.config";
+import {SessionDTO} from "../model/session.dto";
+import {addDataRedis, getDataRedis, key} from "../service/redis.service";
 
-const toolsCache: Map<string, CachedTools> = new Map()
-const TTL = 60 * 60 * 1000
+dotenv.config();
 
 export default async function toolsMiddleware(req: any, res: any, next: any) {
     try {
-        const externalID: string = req.query.externalID
-        if (!externalID) {
+        const session: SessionDTO = (req as any).session
+        if (!session || !session.sessionId) {
             (req as any).tools = []
             return next()
         }
 
-        const cacheEntry = toolsCache.get(externalID)
+        (req as any).tools = []
 
-        if (cacheEntry && cacheEntry.expiresAt > Date.now()) {
-            (req as any).tools = cacheEntry.tools
-            return next()
-        }
+        await getDataRedis<ToolConfig>(session.institutionId || session.sessionId).then(async (result) => {
+            if (result) {
+                (req as any).tools = result || []
+            } else {
+                let tools = await getToolsFromAD(session);
+                if (!tools) return next();
 
-        const tools = await getToolsFromAD(externalID)
-        toolsCache.set(externalID, {
-            tools,
-            expiresAt: Date.now() + TTL
-        });
-
-        (req as any).tools = tools
+                (req as any).tools = tools || [];
+                await addDataRedis(key.tools(session.institutionId || session.sessionId), tools, ENV.TOOLS_TTL_SEC)
+            }
+        })
 
         next()
     } catch (error) {
@@ -34,13 +34,10 @@ export default async function toolsMiddleware(req: any, res: any, next: any) {
     }
 }
 
-async function getToolsFromAD(externalID: string): Promise<any> {
-    const urlAD = process.env.URL_API_AD || "http://localhost:8080/api";
-
-    const response = await fetch(`${urlAD}/institutionInformationsTools?externalID=${externalID}`, {
+async function getToolsFromAD(session: SessionDTO): Promise<any> {
+    const response = await fetch(`${ENV.URL_API_AD}/api/institutionInformationsTools`, {
         method: 'GET',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.accessToken}` },
     });
-
     return await response.json()
 }

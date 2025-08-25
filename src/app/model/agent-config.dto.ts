@@ -10,8 +10,3 @@ export interface ParameterConfig {
     description: string,
     possibleValues: string[]
 }
-
-export interface CachedTools {
-    expiresAt: number
-    tools: Array<ToolConfig>
-}
