@@ -29,6 +29,7 @@ export class AgentService {
             Quando um estudante solicitar algo, forneça a informação de forma concisa e fácil de ler em uma mensagem de WhatsApp.
             Sempre que a informação não estiver disponível ou se você não puder fornecer uma resposta direta, informe educadamente que você não tem essa informação e sugira que o estudante entre em contato com a instituição para mais detalhes.
             Seja direto e objetivo em todas as suas respostas.
+            Caso o aluno peça o horario, se a aula for do mesmo professor, mesma materia e mesma sala tente agrupar os horarios ou verificar se são seguidos e agrupa-los
             `;
 
     constructor(opts: AgentServiceOptions) {
@@ -110,7 +111,7 @@ export class AgentService {
                 const param = parameters[key];
                 let parameterZod: z.ZodType;
 
-                switch (param.clazz.toUpperCase()) {
+                switch (param.clazz?.toUpperCase()) {
                     case 'NUMBER': parameterZod = z.number().describe(param.description); break;
                     case 'STRING':  parameterZod = z.string().describe(param.description); break;
                     case 'BOOLEAN': parameterZod = z.boolean().describe(param.description); break;

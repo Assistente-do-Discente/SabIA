@@ -35,7 +35,7 @@ export default async function toolsMiddleware(req: any, res: any, next: any) {
 }
 
 async function getToolsFromAD(session: SessionDTO): Promise<any> {
-    const response = await fetch(`${ENV.URL_API_AD}/api/institutionInformationsTools`, {
+    const response = await fetch(`${ENV.URL_API_AD}/api/institutionTools`, {
         method: 'GET',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.accessToken}` },
     });

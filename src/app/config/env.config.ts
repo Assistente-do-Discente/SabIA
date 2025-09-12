@@ -17,6 +17,7 @@ export const ENV = {
     URL_API_SABIA: getEnv("URL_API_SABIA", "http://localhost:3000"),
     URL_AUTH_SERVER: getEnv("URL_AUTH_SERVER", "http://localhost:9000"),
     URL_REDIS: getEnv("URL_REDIS", "redis://localhost:6379"),
+    URL_BOT: getEnv("URL_BOT", ""),
 
     OIDC_ISSUER: getEnv("OIDC_ISSUER", "http://localhost:9000"),
     OIDC_CLIENT_ID: getEnv("OIDC_CLIENT_ID", "sabia-agent"),
