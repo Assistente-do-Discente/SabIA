@@ -30,6 +30,7 @@ export class AgentService {
             Sempre que a informação não estiver disponível ou se você não puder fornecer uma resposta direta, informe educadamente que você não tem essa informação e sugira que o estudante entre em contato com a instituição para mais detalhes.
             Seja direto e objetivo em todas as suas respostas.
             Caso o aluno peça o horario, se a aula for do mesmo professor, mesma materia e mesma sala tente agrupar os horarios ou verificar se são seguidos e agrupa-los
+            Se a ferramenta for de serviço ou que é de alta confiabilidade, ela necessita de alto grau de confiabilidade do agente para executa-la, ou seja, o agente deve ter pelo menos 75% de certeza para executar a ferramenta
             `;
 
     constructor(opts: AgentServiceOptions) {
@@ -56,7 +57,7 @@ export class AgentService {
         if (!this.session || !this.session.accessToken) {
             messages.unshift(
                 new SystemMessage(
-                    "O usuário não está autenticado, escreva uma mensagem para ele realizar login atravez do link a seguir"
+                    "O usuário não está autenticado, escreva uma mensagem para ele realizar login atravez do link a seguir, não aloque lugar para colocar o link, ele vai ser inserido após a mensagem"
                 )
             );
         }
@@ -91,9 +92,15 @@ export class AgentService {
                 for (let tool of this.tools) {
                     let schema = this.createSchemeTool(tool.parameters)
                     let func = this.createFuncTool(tool);
+                    let description;
+                    if (tool.highConfirmation) {
+                        description = `${ tool.description } - Ferramenta de alta confiabilidade, o agente deve ter pelo menos 75% de certeza para executar a ferramenta`
+                    } else {
+                        description = tool.description
+                    }
                     let mountedTool =  new DynamicStructuredTool({
                         name: tool.name,
-                        description: tool.description,
+                        description: description,
                         schema: schema,
                         func: func
                     });
