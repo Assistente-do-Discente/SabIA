@@ -17,7 +17,7 @@ export class AgentController {
 
             agentService.handleMessage(message).then((result) => {
                 const messageResponse = new MessageResponse(result.message, 200);
-                res.status(messageResponse.statusCode).send(messageResponse);
+                res.status(messageResponse.statusCode).send({...messageResponse, logged: !!session?.accessToken});
             });
 
         } catch (error) {

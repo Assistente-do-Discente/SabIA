@@ -56,7 +56,7 @@ export class AgentService {
         if (!this.session || !this.session.accessToken) {
             messages.unshift(
                 new SystemMessage(
-                    "O usuário não está autenticado; peça para autenticar usando a ferramenta de login..."
+                    "O usuário não está autenticado, escreva uma mensagem para ele realizar login atravez do link a seguir"
                 )
             );
         }
@@ -85,7 +85,7 @@ export class AgentService {
         let mountedTools: Array<any> = new Array<any>()
 
         if (!this.session || !this.session.accessToken) {
-            mountedTools.push(this.createLoginTool());
+            // mountedTools.push(this.createLoginTool());
         } else {
             if (this.tools && Array.isArray(this.tools)) {
                 for (let tool of this.tools) {
