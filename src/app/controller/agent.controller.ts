@@ -2,6 +2,7 @@ import {NextFunction, Request, Response} from "express";
 import {AgentService} from "../service/agent.service";
 import { ToolConfig} from "../model/agent-config.dto";
 import {MessageResponse} from "../model/message-response.dto";
+import {SessionDTO} from "../model/session.dto";
 
 export class AgentController {
 
@@ -9,12 +10,16 @@ export class AgentController {
         try {
             let message: any = req.body.message
             let tools: Array<ToolConfig> = (req as any).tools
-            let externalID: any = req.query.externalID
+            let session: SessionDTO = (req as any).session
+            let apiKeyLogin: string = req.header('x-api-key') as string;
 
-            AgentService.handleMessage(message, tools, externalID).then((result) => {
-                let messageResponse = new MessageResponse(result.message, 200)
-                res.status(messageResponse.statusCode).send(messageResponse)
-            })
+            const agentService = new AgentService({session, tools, apiKeyLogin});
+
+            agentService.handleMessage(message).then((result) => {
+                const messageResponse = new MessageResponse(result.message, 200);
+                res.status(messageResponse.statusCode).send({...messageResponse, logged: !!session?.accessToken});
+            });
+
         } catch (error) {
             next(error)
         }

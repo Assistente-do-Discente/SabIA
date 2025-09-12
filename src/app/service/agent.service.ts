@@ -1,109 +1,130 @@
-import {ToolConfig} from "../model/agent-config.dto";
-import {z} from "zod";
-import {DynamicStructuredTool} from "@langchain/core/tools";
+import {DynamicStructuredTool, StructuredToolInterface} from "@langchain/core/tools";
 import {createReactAgent} from "@langchain/langgraph/prebuilt";
 import {ChatOpenAI} from "@langchain/openai";
-import * as dotenv from "dotenv";
-import {PostgresSaver} from "@langchain/langgraph-checkpoint-postgres";
-import {pool} from "../../main";
-import {StructuredToolInterface} from "@langchain/core/dist/tools";
-import {v4 as uuidv4} from 'uuid';
+import {ToolConfig} from "../model/agent-config.dto";
+import {SessionDTO} from "../model/session.dto";
+import {ENV} from "../config/env.config";
+import {redis} from "./redis.service";
+import {z} from "zod";
+import {HumanMessage, SystemMessage} from "@langchain/core/messages";
+import {RedisChatMessageHistory} from "@langchain/redis";
 
-dotenv.config();
+type AgentServiceOptions = {
+    session?: SessionDTO;
+    tools?: Array<ToolConfig>;
+    apiKeyLogin?: string;
+};
 
 export class AgentService {
-    static readonly urlAD = process.env.URL_API_AD || "http://localhost:8080/api";
-    static readonly urlLogin = process.env.URL_LOGIN_AD || "http://localhost:8080/login";
-
-    public static async handleMessage(message: string, tools: Array<ToolConfig>, externalID: string) {
-        let agent = await this.createAgent(tools, externalID)
-
-        return { message: await this.processMessage(agent, message, externalID) }
-    }
-
-    private static async processMessage(agent: any, message: string, externalID: string) {
-        const config = { configurable: { thread_id: externalID || uuidv4() } };
-
-        let messages = [{
-            role: "user",
-            content: message
-        }];
-
-        if (!externalID) {
-            messages.push({
-                role: "system",
-                content: "O usuário não está autenticado, por favor peça para ele se autenticar, acessando o link: " + this.urlLogin
-            })
-        }
-
-        let agentOutput = await agent.invoke({ messages: messages}, config);
-
-        return agentOutput.messages[agentOutput.messages.length - 1].content;
-    }
-
-    private static async createAgent(tools: Array<ToolConfig>, externalID: string) {
-        const checkpointer = new PostgresSaver(pool);
-        await checkpointer.setup();
-
-        let prompt = `
+    private readonly session?: SessionDTO;
+    private readonly tools?: Array<ToolConfig>;
+    private readonly apiKeyLogin?: string;
+    private readonly llmModel: string = 'gpt-4o-mini';
+    private readonly sessionId: string;
+    private readonly messageHistory: RedisChatMessageHistory;
+    private readonly prompt: string = `
             Você é um assistente inteligente projetado para facilitar o acesso de estudantes a suas informações acadêmicas essenciais.
             Seu principal canal de comunicação é o WhatsApp. Isso significa que todas as suas respostas devem ser entregues como mensagens de texto simples, sem o uso de Markdown, negrito, itálico, bullet points, cabeçalhos ou qualquer outra formatação especial. A mensagem deve ser direta e clara, mas mantendo um tom educado e acolhedor, como se estivesse sendo digitada por uma pessoa no WhatsApp.
             Seu objetivo é ajudar os estudantes a obter informações como: Faltas, Horário de aula, Notas, Comunicados importantes da instituição, Histórico acadêmico
             Quando um estudante solicitar algo, forneça a informação de forma concisa e fácil de ler em uma mensagem de WhatsApp.
             Sempre que a informação não estiver disponível ou se você não puder fornecer uma resposta direta, informe educadamente que você não tem essa informação e sugira que o estudante entre em contato com a instituição para mais detalhes.
             Seja direto e objetivo em todas as suas respostas.
+            Caso o aluno peça o horario, se a aula for do mesmo professor, mesma materia e mesma sala tente agrupar os horarios ou verificar se são seguidos e agrupa-los
+            Se a ferramenta for de serviço ou que é de alta confiabilidade, ela necessita de alto grau de confiabilidade do agente para executa-la, ou seja, o agente deve ter pelo menos 75% de certeza para executar a ferramenta
             `;
 
-        return createReactAgent({
-            llm: this.createLLM(),
-            tools: this.createTools(tools, externalID),
-            checkpointSaver: checkpointer,
-            messageModifier: prompt
+    constructor(opts: AgentServiceOptions) {
+        this.session = opts.session;
+        this.tools = opts.tools;
+        this.apiKeyLogin = opts.apiKeyLogin;
+        this.sessionId = this.session?.sessionId || 'testando';
+        this.messageHistory = new RedisChatMessageHistory({
+            sessionId: this.sessionId,
+            sessionTTL: ENV.AGENT_TTL_SEC,
+            client: redis,
         });
     }
 
-    private static createLLM() {
-        return new ChatOpenAI( {model: 'gpt-4o-mini', temperature: 0} )
+    public async handleMessage(message: string) {
+        let agent = await this.createAgent();
+
+        return { message: await this.processMessage(agent, message) }
     }
 
-    private static createTools(tools: Array<ToolConfig>, externalID: string): Array<StructuredToolInterface> {
+    private async processMessage(agent: any, message: string) {
+        let messages = [new HumanMessage(message)];
+
+        if (!this.session || !this.session.accessToken) {
+            messages.unshift(
+                new SystemMessage(
+                    "O usuário não está autenticado, escreva uma mensagem para ele realizar login atravez do link a seguir, não aloque lugar para colocar o link, ele vai ser inserido após a mensagem"
+                )
+            );
+        }
+
+        const agentOutput = await agent.invoke(
+            { messages: messages },
+            { configurable: { thread_id: this.sessionId, sessionId: this.sessionId } }
+        );
+
+        return agentOutput.messages[agentOutput.messages.length - 1].content;
+    }
+
+    private async createAgent() {
+        return createReactAgent({
+            llm: this.createLLM(),
+            tools: this.createTools(),
+            messageModifier: this.prompt
+        });
+    }
+
+    private createLLM() {
+        return new ChatOpenAI({model: this.llmModel, temperature: 0})
+    }
+
+    private createTools(): Array<StructuredToolInterface> {
         let mountedTools: Array<any> = new Array<any>()
 
-        if (tools) {
-            for (let tool of tools) {
-                let mountedTool = this.createDynamicTool(tool, externalID);
-                mountedTools.push(mountedTool);
+        if (!this.session || !this.session.accessToken) {
+            // mountedTools.push(this.createLoginTool());
+        } else {
+            if (this.tools && Array.isArray(this.tools)) {
+                for (let tool of this.tools) {
+                    let schema = this.createSchemeTool(tool.parameters)
+                    let func = this.createFuncTool(tool);
+                    let description;
+                    if (tool.highConfirmation) {
+                        description = `${ tool.description } - Ferramenta de alta confiabilidade, o agente deve ter pelo menos 75% de certeza para executar a ferramenta`
+                    } else {
+                        description = tool.description
+                    }
+                    let mountedTool =  new DynamicStructuredTool({
+                        name: tool.name,
+                        description: description,
+                        schema: schema,
+                        func: func
+                    });
+                    mountedTools.push(mountedTool);
+                }
             }
         }
 
         return mountedTools;
     }
 
-    private static createDynamicTool(tool: ToolConfig, externalID: string): any {
-        let schema = this.createSchemeTool(tool.parameters)
-        let func = this.createFuncTool(tool, externalID);
-        return new DynamicStructuredTool({
-            name: tool.name,
-            description: tool.description,
-            schema: schema,
-            func: func
-        });
-    }
-
-    private static createSchemeTool(parameters: any): any {
+    private createSchemeTool(parameters: any): any {
         return !parameters ? z.object({}) : z.object(
             Object.keys(parameters).reduce((acc, key) => {
                 const param = parameters[key];
                 let parameterZod: z.ZodType;
 
-                switch (param.clazz.toUpperCase()) {
+                switch (param.clazz?.toUpperCase()) {
                     case 'NUMBER': parameterZod = z.number().describe(param.description); break;
                     case 'STRING':  parameterZod = z.string().describe(param.description); break;
                     case 'BOOLEAN': parameterZod = z.boolean().describe(param.description); break;
                     case 'ENUM': parameterZod = z.enum(param.possibleValues).describe(param.description); break;
                     case 'NULL': parameterZod = z.null(); break;
                     default: {
-                        console.log(`Tipo de parâmetro não suportado: ${param.clazz}`);
                         parameterZod = z.null(); break;
                     }
                 }
@@ -119,15 +140,15 @@ export class AgentService {
         );
     }
 
-    private static createFuncTool(tool: ToolConfig, externalID: string): any {
+    private createFuncTool(tool: ToolConfig): any {
         return async (args: any): Promise<string> => {
             const filterArgs = Object.fromEntries(
                 Object.entries(args).filter(([_, value]) => value !== undefined)
             );
 
-            const response = await fetch(`${this.urlAD}/generate-response/${tool.name}?externalID=${externalID}`, {
+            const response = await fetch(`${ENV.URL_API_AD}/api/generate-response/${tool.name}`, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${this.session?.accessToken}` },
                 body: JSON.stringify(filterArgs),
             });
 
@@ -135,5 +156,21 @@ export class AgentService {
 
             return JSON.stringify(data);
         }
+    }
+
+    private createLoginTool(): any {
+        return  new DynamicStructuredTool({
+            name: "login",
+            description: "Use esta ferramenta para gerar um link para realizar autenticação do usuário. Envie o link gerado para o usuário",
+            schema: z.object({}),
+            func: async ({}: any) => {
+                const response = await fetch(`${ENV.URL_API_SABIA}/auth/generate-login`, {
+                    method: 'POST',
+                    headers: { 'x-api-key': `${this.apiKeyLogin}` }
+                });
+                const data = await response.json();
+                return JSON.stringify(data);
+            },
+        });
     }
 }
