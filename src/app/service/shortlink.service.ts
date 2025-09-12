@@ -12,8 +12,11 @@ export async function resolveShortLink(id: string): Promise<string | null> {
     if (!longUrl)
         return null;
 
-    await delDataRedis(key.shortLink(id));
     return longUrl;
+}
+
+export async function deleteShortLink(id: string) {
+    await delDataRedis(key.shortLink(id));
 }
 
 function randomId(len = 8) {
