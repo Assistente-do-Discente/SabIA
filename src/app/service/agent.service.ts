@@ -6,8 +6,9 @@ import {SessionDTO} from "../model/session.dto";
 import {ENV} from "../config/env.config";
 import {redis} from "./redis.service";
 import {z} from "zod";
-import {HumanMessage, SystemMessage} from "@langchain/core/messages";
+import {AIMessage, HumanMessage, SystemMessage} from "@langchain/core/messages";
 import {RedisChatMessageHistory} from "@langchain/redis";
+import {v4 as uuidv4} from "uuid";
 
 type AgentServiceOptions = {
     session?: SessionDTO;
@@ -37,7 +38,7 @@ export class AgentService {
         this.session = opts.session;
         this.tools = opts.tools;
         this.apiKeyLogin = opts.apiKeyLogin;
-        this.sessionId = this.session?.sessionId || 'testando';
+        this.sessionId = this.session?.sessionId || uuidv4();
         this.messageHistory = new RedisChatMessageHistory({
             sessionId: this.sessionId,
             sessionTTL: ENV.AGENT_TTL_SEC,
@@ -52,7 +53,8 @@ export class AgentService {
     }
 
     private async processMessage(agent: any, message: string) {
-        let messages = [new HumanMessage(message)];
+        const history = await this.messageHistory.getMessages();
+        let messages = [...history, new HumanMessage(message)];
 
         if (!this.session || !this.session.accessToken) {
             messages.unshift(
@@ -67,7 +69,12 @@ export class AgentService {
             { configurable: { thread_id: this.sessionId, sessionId: this.sessionId } }
         );
 
-        return agentOutput.messages[agentOutput.messages.length - 1].content;
+        const lastMessage = agentOutput.messages[agentOutput.messages.length - 1];
+
+        await this.messageHistory.addMessage(new HumanMessage(message));
+        await this.messageHistory.addMessage(new AIMessage(lastMessage.content as string));
+
+        return lastMessage.content;
     }
 
     private async createAgent() {

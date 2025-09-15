@@ -49,7 +49,7 @@ export async function handleCallback(state: string, code: string) {
     const {access_token, refresh_token, expires_in} = data;
     const decoded: any = decodeJwt(access_token);
     const studentUuid: string = decoded.sub;
-    const institutionId: string = decoded.institutionId;
+    const institutionId: string = decoded.institution_id;
     const expireIn = Date.now() + expires_in * 1000;
 
     const sess = await getSession(saved.sessionId);

@@ -16,7 +16,7 @@ export default async function toolsMiddleware(req: any, res: any, next: any) {
 
         (req as any).tools = []
 
-        await getDataRedis<ToolConfig>(session.institutionId || session.sessionId).then(async (result) => {
+        await getDataRedis<ToolConfig>(key.tools(session.institutionId || session.sessionId)).then(async (result) => {
             if (result) {
                 (req as any).tools = result || []
             } else {
