@@ -91,6 +91,7 @@ export class AgentService {
 
     private createTools(): Array<StructuredToolInterface> {
         let mountedTools: Array<any> = new Array<any>()
+        mountedTools.push(this.createDateTool())
 
         if (!this.session || !this.session.accessToken) {
             // mountedTools.push(this.createLoginTool());
@@ -177,6 +178,17 @@ export class AgentService {
                 });
                 const data = await response.json();
                 return JSON.stringify(data);
+            },
+        });
+    }
+
+    private createDateTool(): any {
+        return  new DynamicStructuredTool({
+            name: "getActualDate",
+            description: "Utilize essa ferramanta para quando precisar saber qual a data e hora atual.",
+            schema: z.object({}),
+            func: async ({}: any) => {
+                return JSON.stringify({ actualDate: new Date().toISOString() });
             },
         });
     }
