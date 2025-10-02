@@ -20,7 +20,14 @@ export default async function toolsMiddleware(req: any, res: any, next: any) {
             if (result) {
                 (req as any).tools = result || []
             } else {
-                let tools = await getToolsFromAD(session);
+                let tools;
+
+                if (session.accessToken) {
+                    tools = await getInstitutionTools(session);
+                } else {
+                    tools = await getInformationTools();
+                }
+
                 if (!tools) return next();
 
                 (req as any).tools = tools || [];
@@ -34,10 +41,18 @@ export default async function toolsMiddleware(req: any, res: any, next: any) {
     }
 }
 
-async function getToolsFromAD(session: SessionDTO): Promise<any> {
+async function getInstitutionTools(session: SessionDTO): Promise<any> {
     const response = await fetch(`${ENV.URL_API_AD}/api/institutionTools`, {
         method: 'GET',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.accessToken}` },
+    });
+    return await response.json()
+}
+
+async function getInformationTools(): Promise<any> {
+    const response = await fetch(`${ENV.URL_API_AD}/api/informationTools`, {
+        method: 'GET',
+        headers: { 'Content-Type': 'application/json' },
     });
     return await response.json()
 }

@@ -4,6 +4,7 @@ import {handleCallback, makeUrlAuth} from "../service/oidc.service";
 import {createShortLink} from "../service/shortlink.service";
 import {UnauthorizedError} from "../model/api-error.dto";
 import {ENV} from "../config/env.config";
+import {SessionDTO} from "../model/session.dto";
 
 export const authRouter = Router();
 
@@ -17,13 +18,13 @@ function requireApiKey(req: any, res: any, next: any) {
 
 authRouter.post("/generate-login", requireApiKey, async (_req, res, next) => {
     try {
-        const sess = await createSession();
+        const sess: SessionDTO = (_req as any).session
         const loginUrl = makeUrlAuth(sess.sessionId);
 
         const id = await createShortLink(loginUrl);
         const shortUrl = `${ENV.URL_API_SABIA}/l/${id}`;
 
-        res.json({sessionId: sess.sessionId, shortUrl});
+        res.json({shortUrl});
     } catch (e) {
         next(e);
     }
