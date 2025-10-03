@@ -1,5 +1,5 @@
 import {Router} from "express";
-import {createSession, getSession} from "../service/sessions.service";
+import {getSession} from "../service/sessions.service";
 import {handleCallback, makeUrlAuth} from "../service/oidc.service";
 import {createShortLink} from "../service/shortlink.service";
 import {UnauthorizedError} from "../model/api-error.dto";
@@ -36,7 +36,7 @@ authRouter.get("/callback", async (req, res) => {
 
     try {
         await handleCallback(state, code);
-        res.type("html").send(`Login concluído. Você já pode voltar ao WhatsApp!>`);
+        res.type("html").send(`Login concluído. Você já pode voltar ao WhatsApp!`);
     } catch (e: any) {
         console.error(e);
     }

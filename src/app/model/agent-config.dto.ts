@@ -2,6 +2,7 @@ export interface ToolConfig {
     name: string
     description: string
     highConfirmation: boolean
+    authenticationRequired: boolean
     parameters: Record<string, ParameterConfig>
 }
 

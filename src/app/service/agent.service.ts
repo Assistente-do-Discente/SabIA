@@ -6,7 +6,7 @@ import {SessionDTO} from "../model/session.dto";
 import {ENV} from "../config/env.config";
 import {redis} from "./redis.service";
 import {z} from "zod";
-import {AIMessage, HumanMessage, SystemMessage} from "@langchain/core/messages";
+import {AIMessage, HumanMessage} from "@langchain/core/messages";
 import {RedisChatMessageHistory} from "@langchain/redis";
 import {v4 as uuidv4} from "uuid";
 import {prompt} from "../config/prompt";
@@ -77,17 +77,13 @@ export class AgentService {
         let mountedTools: Array<any> = new Array<any>()
         mountedTools.push(this.createDateTool())
         mountedTools.push(this.createLoginTool())
+        mountedTools.push(...this.createMathTools())
 
         if (this.tools && Array.isArray(this.tools)) {
             for (let tool of this.tools) {
                 let schema = this.createSchemeTool(tool.parameters)
                 let func = this.createFuncTool(tool);
-                let description;
-                if (tool.highConfirmation) {
-                    description = `${ tool.description } - Ferramenta de alta confiabilidade, o agente deve ter pelo menos 75% de certeza para executar a ferramenta`
-                } else {
-                    description = tool.description
-                }
+                let description = this.createDescriptionTool(tool)
                 let mountedTool =  new DynamicStructuredTool({
                     name: tool.name,
                     description: description,
@@ -156,6 +152,20 @@ export class AgentService {
         }
     }
 
+    private createDescriptionTool(tool: ToolConfig): any {
+        let description = tool.description;
+        let suffix: string;
+        if (tool.highConfirmation) {
+            suffix = `Ferramenta de alta confiabilidade, o agente deve ter pelo menos 75% de certeza para executar a ferramenta.`;
+        } else {
+            suffix = tool.authenticationRequired ? 'Ferramenta necessita de autenticação.' : 'Ferramenta não necessita de autenticação.';
+        }
+        if (suffix) {
+            description = `${description} - ${suffix}`;
+        }
+        return description;
+    }
+
     private createLoginTool(): any {
         return new DynamicStructuredTool({
             name: "login",
@@ -181,5 +191,60 @@ export class AgentService {
                 return JSON.stringify({ actualDate: new Date().toISOString() });
             },
         });
+    }
+
+    private createMathTools(): Array<any> {
+        let mathTools: Array<any> = new Array<any>();
+        mathTools.push(new DynamicStructuredTool({
+            name: "sumNumbers",
+            description: "soma dois números",
+            schema: z.object({
+                a: z.number().describe("o primeiro número a somar"),
+                b: z.number().describe("o segundo número a somar"),
+            }),
+            func: async ({ a, b }: { a: number; b: number }) => {
+                return (a + b).toString();
+            },
+        }));
+
+        mathTools.push(new DynamicStructuredTool({
+            name: "subtractNumbers",
+            description: "subtrai o segundo número do primeiro",
+            schema: z.object({
+                a: z.number().describe("o número de onde será subtraído"),
+                b: z.number().describe("o número que será subtraído"),
+            }),
+            func: async ({ a, b }: { a: number; b: number }) => {
+                return (a - b).toString();
+            },
+        }));
+
+        mathTools.push(new DynamicStructuredTool({
+            name: "multiplyNumbers",
+            description: "multiplica dois números",
+            schema: z.object({
+                a: z.number().describe("o primeiro número a multiplicar"),
+                b: z.number().describe("o segundo número a multiplicar"),
+            }),
+            func: async ({ a, b }: { a: number; b: number }) => {
+                return (a * b).toString();
+            },
+        }));
+
+        mathTools.push(new DynamicStructuredTool({
+            name: "divideNumbers",
+            description: "divide o primeiro número pelo segundo",
+            schema: z.object({
+                a: z.number().describe("o número que será dividido"),
+                b: z.number().describe("o divisor (não pode ser zero)"),
+            }),
+            func: async ({ a, b }: { a: number; b: number }) => {
+                if (b === 0) {
+                    return "Divisão por zero não é permitida";
+                }
+                return (a / b).toString();
+            },
+        }));
+        return mathTools;
     }
 }

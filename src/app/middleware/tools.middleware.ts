@@ -37,6 +37,7 @@ export default async function toolsMiddleware(req: any, res: any, next: any) {
 
         next()
     } catch (error) {
+        console.error(error)
         next()
     }
 }
