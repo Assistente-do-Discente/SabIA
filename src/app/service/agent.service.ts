@@ -168,8 +168,8 @@ export class AgentService {
 
     private createLoginTool(): any {
         return new DynamicStructuredTool({
-            name: "login",
-            description: "Use esta ferramenta para gerar um link para realizar autenticação do usuário, pegue o link retornado da função e monte a mensagem para o usuário",
+            name: "generateLoginLink",
+            description: "Use esta ferramenta para gerar um link para realizar autenticação do usuário",
             schema: z.object({}),
             func: async () => {
                 const response = await fetch(`${ENV.URL_API_SABIA}/auth/generate-login?sessionId=${this.sessionId}`, {
@@ -185,7 +185,7 @@ export class AgentService {
     private createDateTool(): any {
         return  new DynamicStructuredTool({
             name: "getActualDate",
-            description: "Utilize essa ferramanta para quando precisar saber qual a data e hora atual.",
+            description: "Utilize essa ferramanta para quando precisar saber qual a data e hora atual, sempre que o usuário escrever 'hoje', 'amanhã', ou 'ontem', utilize essa ferramenta para saber o dia atual, e com base no dia atual saber quais são os outros dias.",
             schema: z.object({}),
             func: async ({}: any) => {
                 return JSON.stringify({ actualDate: new Date().toISOString() });
