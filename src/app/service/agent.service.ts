@@ -145,10 +145,13 @@ export class AgentService {
 
                 logger.debug(`Começando execução da ferramenta: ${tool.name} - Com os parâmetros: ${filterArgs}`)
                 const data = await response.json();
+                if (response.status !== 200) {
+                    logger.error(`Erro ao gerar link de login: ${response.status} - ${response.statusText}`)
+                }
 
                 return JSON.stringify(data);
             } catch (error: any) {
-                console.error('Erro ao chamar a API:', error);
+                logger.error('Erro ao chamar a API:', error);
                 return 'Erro ao chamar a API:' + error;
             }
         }
@@ -174,12 +177,19 @@ export class AgentService {
             description: "Use esta ferramenta para gerar um link para realizar autenticação do usuário",
             schema: z.object({}),
             func: async () => {
-                const response = await fetch(`${ENV.URL_API_SABIA}/auth/generate-login?sessionId=${this.sessionId}`, {
-                    method: 'POST',
-                    headers: { 'x-api-key': `${this.apiKeyLogin}` }
-                });
-                const data = await response.json();
-                return JSON.stringify(data);
+                try {
+                    const response = await fetch(`${ENV.URL_API_SABIA}/auth/generate-login?sessionId=${this.sessionId}`, {
+                        method: 'POST',
+                        headers: { 'x-api-key': `${this.apiKeyLogin}` }
+                    });
+                    const data = await response.json();
+                    if (response.status !== 200) {
+                        logger.error(`Erro ao gerar link de login: ${response.status} - ${response.statusText}`)
+                    }
+                    return JSON.stringify(data);
+                } catch (error: any) {
+                    logger.error(error)
+                }
             },
         });
     }
