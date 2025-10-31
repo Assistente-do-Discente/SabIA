@@ -92,7 +92,7 @@ export async function refreshIfNeeded(sess: SessionDTO) {
         sess["accessToken"] = access_token;
         sess["refreshToken"] = refresh_token || sess.refreshToken;
         sess["studentUuid"] = decoded.sub;
-        sess["institutionId"] = decoded.institutionId;
+        sess["institutionId"] = decoded.institution_id;
         sess["expireIn"] = Date.now() + (expires_in * 1000);
 
         await saveSession(sess as any);

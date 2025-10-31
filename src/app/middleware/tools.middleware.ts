@@ -3,41 +3,42 @@ import * as dotenv from "dotenv";
 import {ENV} from "../config/env.config";
 import {SessionDTO} from "../model/session.dto";
 import {addDataRedis, getDataRedis, key} from "../service/redis.service";
+import logger from "../config/logger.config";
 
 dotenv.config();
 
 export default async function toolsMiddleware(req: any, res: any, next: any) {
     try {
-        const session: SessionDTO = (req as any).session
+        (req as any).tools = [];
+
+        const session: SessionDTO = (req as any).session;
         if (!session || !session.sessionId) {
-            (req as any).tools = []
-            return next()
+            return next();
         }
 
-        (req as any).tools = []
+        const cacheKey = key.tools(session.institutionId || session.sessionId);
+        logger.info(`Obtendo ferramentas para a chave: ${cacheKey}`);
+        let result = await getDataRedis<ToolConfig>(cacheKey);
 
-        await getDataRedis<ToolConfig>(key.tools(session.institutionId || session.sessionId)).then(async (result) => {
-            if (result) {
-                (req as any).tools = result || []
+        if (!result) {
+            if (session.accessToken) {
+                result = await getInstitutionTools(session);
             } else {
-                let tools;
-
-                if (session.accessToken) {
-                    tools = await getInstitutionTools(session);
-                } else {
-                    tools = await getInformationTools();
-                }
-
-                if (!tools) return next();
-
-                (req as any).tools = tools || [];
-                await addDataRedis(key.tools(session.institutionId || session.sessionId), tools, ENV.TOOLS_TTL_SEC)
+                result = await getInformationTools();
             }
-        })
 
-        next()
+            if (result) {
+                logger.info(`Adicionando ferramentas no redis: ${Array.isArray(result) ? result.length : "Não é uma lista"}`);
+                await addDataRedis(cacheKey, result, ENV.TOOLS_TTL_SEC);
+            }
+        }
+
+        logger.info(`Ferramentas encontradas para processamento: ${Array.isArray(result) ? result.length : "Não é uma lista"}`);
+        (req as any).tools = result || [];
+
+        next();
     } catch (error) {
-        console.error(error)
+        logger.error(`Erro ao realizar busca de ferramentas: ${ error }`)
         next()
     }
 }
@@ -47,7 +48,8 @@ async function getInstitutionTools(session: SessionDTO): Promise<any> {
         method: 'GET',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.accessToken}` },
     });
-    return await response.json()
+    let data = await response.json();
+    return data;
 }
 
 async function getInformationTools(): Promise<any> {
@@ -55,5 +57,6 @@ async function getInformationTools(): Promise<any> {
         method: 'GET',
         headers: { 'Content-Type': 'application/json' },
     });
-    return await response.json()
+    let data = await response.json();
+    return data;
 }

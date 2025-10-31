@@ -10,6 +10,7 @@ import {AIMessage, HumanMessage} from "@langchain/core/messages";
 import {RedisChatMessageHistory} from "@langchain/redis";
 import {v4 as uuidv4} from "uuid";
 import {prompt} from "../config/prompt";
+import logger from "../config/logger.config";
 
 type AgentServiceOptions = {
     session?: SessionDTO;
@@ -142,6 +143,7 @@ export class AgentService {
                     body: JSON.stringify(filterArgs),
                 });
 
+                logger.debug(`Começando execução da ferramenta: ${tool.name} - Com os parâmetros: ${filterArgs}`)
                 const data = await response.json();
 
                 return JSON.stringify(data);
