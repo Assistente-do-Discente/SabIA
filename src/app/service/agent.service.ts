@@ -6,9 +6,11 @@ import {SessionDTO} from "../model/session.dto";
 import {ENV} from "../config/env.config";
 import {redis} from "./redis.service";
 import {z} from "zod";
-import {AIMessage, HumanMessage, SystemMessage} from "@langchain/core/messages";
+import {AIMessage, HumanMessage} from "@langchain/core/messages";
 import {RedisChatMessageHistory} from "@langchain/redis";
 import {v4 as uuidv4} from "uuid";
+import {prompt} from "../config/prompt";
+import logger from "../config/logger.config";
 
 type AgentServiceOptions = {
     session?: SessionDTO;
@@ -23,16 +25,7 @@ export class AgentService {
     private readonly llmModel: string = 'gpt-4o-mini';
     private readonly sessionId: string;
     private readonly messageHistory: RedisChatMessageHistory;
-    private readonly prompt: string = `
-            Você é um assistente inteligente projetado para facilitar o acesso de estudantes a suas informações acadêmicas essenciais.
-            Seu principal canal de comunicação é o WhatsApp. Isso significa que todas as suas respostas devem ser entregues como mensagens de texto simples, sem o uso de Markdown, negrito, itálico, bullet points, cabeçalhos ou qualquer outra formatação especial. A mensagem deve ser direta e clara, mas mantendo um tom educado e acolhedor, como se estivesse sendo digitada por uma pessoa no WhatsApp.
-            Seu objetivo é ajudar os estudantes a obter informações como: Faltas, Horário de aula, Notas, Comunicados importantes da instituição, Histórico acadêmico
-            Quando um estudante solicitar algo, forneça a informação de forma concisa e fácil de ler em uma mensagem de WhatsApp.
-            Sempre que a informação não estiver disponível ou se você não puder fornecer uma resposta direta, informe educadamente que você não tem essa informação e sugira que o estudante entre em contato com a instituição para mais detalhes.
-            Seja direto e objetivo em todas as suas respostas.
-            Caso o aluno peça o horario, se a aula for do mesmo professor, mesma materia e mesma sala tente agrupar os horarios ou verificar se são seguidos e agrupa-los
-            Se a ferramenta for de serviço ou que é de alta confiabilidade, ela necessita de alto grau de confiabilidade do agente para executa-la, ou seja, o agente deve ter pelo menos 75% de certeza para executar a ferramenta
-            `;
+    private readonly prompt: string = prompt;
 
     constructor(opts: AgentServiceOptions) {
         this.session = opts.session;
@@ -55,14 +48,6 @@ export class AgentService {
     private async processMessage(agent: any, message: string) {
         const history = await this.messageHistory.getMessages();
         let messages = [...history, new HumanMessage(message)];
-
-        if (!this.session || !this.session.accessToken) {
-            messages.unshift(
-                new SystemMessage(
-                    "O usuário não está autenticado, escreva uma mensagem para ele realizar login atravez do link a seguir, não aloque lugar para colocar o link, ele vai ser inserido após a mensagem"
-                )
-            );
-        }
 
         const agentOutput = await agent.invoke(
             { messages: messages },
@@ -92,28 +77,21 @@ export class AgentService {
     private createTools(): Array<StructuredToolInterface> {
         let mountedTools: Array<any> = new Array<any>()
         mountedTools.push(this.createDateTool())
+        mountedTools.push(this.createLoginTool())
+        mountedTools.push(...this.createMathTools())
 
-        if (!this.session || !this.session.accessToken) {
-            // mountedTools.push(this.createLoginTool());
-        } else {
-            if (this.tools && Array.isArray(this.tools)) {
-                for (let tool of this.tools) {
-                    let schema = this.createSchemeTool(tool.parameters)
-                    let func = this.createFuncTool(tool);
-                    let description;
-                    if (tool.highConfirmation) {
-                        description = `${ tool.description } - Ferramenta de alta confiabilidade, o agente deve ter pelo menos 75% de certeza para executar a ferramenta`
-                    } else {
-                        description = tool.description
-                    }
-                    let mountedTool =  new DynamicStructuredTool({
-                        name: tool.name,
-                        description: description,
-                        schema: schema,
-                        func: func
-                    });
-                    mountedTools.push(mountedTool);
-                }
+        if (this.tools && Array.isArray(this.tools)) {
+            for (let tool of this.tools) {
+                let schema = this.createSchemeTool(tool.parameters)
+                let func = this.createFuncTool(tool);
+                let description = this.createDescriptionTool(tool)
+                let mountedTool =  new DynamicStructuredTool({
+                    name: tool.name,
+                    description: description,
+                    schema: schema,
+                    func: func
+                });
+                mountedTools.push(mountedTool);
             }
         }
 
@@ -154,30 +132,64 @@ export class AgentService {
                 Object.entries(args).filter(([_, value]) => value !== undefined)
             );
 
-            const response = await fetch(`${ENV.URL_API_AD}/api/generate-response/${tool.name}`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${this.session?.accessToken}` },
-                body: JSON.stringify(filterArgs),
-            });
+            try {
+                const headers: Record<string, string> = { "Content-Type": "application/json" };
+                if (this.session?.accessToken) {
+                    headers["Authorization"] = `Bearer ${this.session.accessToken}`;
+                }
+                const response = await fetch(`${ENV.URL_API_AD}/api/generate-response/${tool.name}`, {
+                    method: 'POST',
+                    headers,
+                    body: JSON.stringify(filterArgs),
+                });
 
-            const data = await response.json();
+                logger.debug(`Começando execução da ferramenta: ${tool.name} - Com os parâmetros: ${filterArgs}`)
+                const data = await response.json();
+                if (response.status !== 200) {
+                    logger.error(`Erro ao gerar link de login: ${response.status} - ${response.statusText}`)
+                }
 
-            return JSON.stringify(data);
+                return JSON.stringify(data);
+            } catch (error: any) {
+                logger.error('Erro ao chamar a API:', error);
+                return 'Erro ao chamar a API:' + error;
+            }
         }
     }
 
+    private createDescriptionTool(tool: ToolConfig): any {
+        let description = tool.description;
+        let suffix: string;
+        if (tool.highConfirmation) {
+            suffix = `Ferramenta de alta confiabilidade, o agente deve ter pelo menos 75% de certeza para executar a ferramenta.`;
+        } else {
+            suffix = tool.authenticationRequired ? 'Ferramenta necessita de autenticação.' : 'Ferramenta não necessita de autenticação.';
+        }
+        if (suffix) {
+            description = `${description} - ${suffix}`;
+        }
+        return description;
+    }
+
     private createLoginTool(): any {
-        return  new DynamicStructuredTool({
-            name: "login",
-            description: "Use esta ferramenta para gerar um link para realizar autenticação do usuário. Envie o link gerado para o usuário",
+        return new DynamicStructuredTool({
+            name: "generateLoginLink",
+            description: "Use esta ferramenta para gerar um link para realizar autenticação do usuário",
             schema: z.object({}),
-            func: async ({}: any) => {
-                const response = await fetch(`${ENV.URL_API_SABIA}/auth/generate-login`, {
-                    method: 'POST',
-                    headers: { 'x-api-key': `${this.apiKeyLogin}` }
-                });
-                const data = await response.json();
-                return JSON.stringify(data);
+            func: async () => {
+                try {
+                    const response = await fetch(`${ENV.URL_API_SABIA}/auth/generate-login?sessionId=${this.sessionId}`, {
+                        method: 'POST',
+                        headers: { 'x-api-key': `${this.apiKeyLogin}` }
+                    });
+                    const data = await response.json();
+                    if (response.status !== 200) {
+                        logger.error(`Erro ao gerar link de login: ${response.status} - ${response.statusText}`)
+                    }
+                    return JSON.stringify(data);
+                } catch (error: any) {
+                    logger.error(error)
+                }
             },
         });
     }
@@ -185,11 +197,66 @@ export class AgentService {
     private createDateTool(): any {
         return  new DynamicStructuredTool({
             name: "getActualDate",
-            description: "Utilize essa ferramanta para quando precisar saber qual a data e hora atual.",
+            description: "Utilize essa ferramanta para quando precisar saber qual a data e hora atual, sempre que o usuário escrever 'hoje', 'amanhã', ou 'ontem', utilize essa ferramenta para saber o dia atual, e com base no dia atual saber quais são os outros dias.",
             schema: z.object({}),
             func: async ({}: any) => {
                 return JSON.stringify({ actualDate: new Date().toISOString() });
             },
         });
+    }
+
+    private createMathTools(): Array<any> {
+        let mathTools: Array<any> = new Array<any>();
+        mathTools.push(new DynamicStructuredTool({
+            name: "sumNumbers",
+            description: "soma dois números",
+            schema: z.object({
+                a: z.number().describe("o primeiro número a somar"),
+                b: z.number().describe("o segundo número a somar"),
+            }),
+            func: async ({ a, b }: { a: number; b: number }) => {
+                return (a + b).toString();
+            },
+        }));
+
+        mathTools.push(new DynamicStructuredTool({
+            name: "subtractNumbers",
+            description: "subtrai o segundo número do primeiro",
+            schema: z.object({
+                a: z.number().describe("o número de onde será subtraído"),
+                b: z.number().describe("o número que será subtraído"),
+            }),
+            func: async ({ a, b }: { a: number; b: number }) => {
+                return (a - b).toString();
+            },
+        }));
+
+        mathTools.push(new DynamicStructuredTool({
+            name: "multiplyNumbers",
+            description: "multiplica dois números",
+            schema: z.object({
+                a: z.number().describe("o primeiro número a multiplicar"),
+                b: z.number().describe("o segundo número a multiplicar"),
+            }),
+            func: async ({ a, b }: { a: number; b: number }) => {
+                return (a * b).toString();
+            },
+        }));
+
+        mathTools.push(new DynamicStructuredTool({
+            name: "divideNumbers",
+            description: "divide o primeiro número pelo segundo",
+            schema: z.object({
+                a: z.number().describe("o número que será dividido"),
+                b: z.number().describe("o divisor (não pode ser zero)"),
+            }),
+            func: async ({ a, b }: { a: number; b: number }) => {
+                if (b === 0) {
+                    return "Divisão por zero não é permitida";
+                }
+                return (a / b).toString();
+            },
+        }));
+        return mathTools;
     }
 }
