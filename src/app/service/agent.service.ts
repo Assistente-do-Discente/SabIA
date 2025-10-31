@@ -143,7 +143,7 @@ export class AgentService {
                     body: JSON.stringify(filterArgs),
                 });
 
-                logger.debug(`Começando execução da ferramenta: ${tool.name} - Com os parâmetros: ${filterArgs}`)
+                logger.info(`Começando execução da ferramenta: ${tool.name} - Com os parâmetros: ${filterArgs}`)
                 const data = await response.json();
                 if (response.status !== 200) {
                     logger.error(`Erro ao gerar link de login: ${response.status} - ${response.statusText}`)
