@@ -143,10 +143,10 @@ export class AgentService {
                     body: JSON.stringify(filterArgs),
                 });
 
-                logger.info(`Começando execução da ferramenta: ${tool.name} - Com os parâmetros: ${filterArgs}`)
+                logger.info(filterArgs, `Comecando execucao da ferramenta: ${tool.name} - Com os parametros: `)
                 const data = await response.json();
                 if (response.status !== 200) {
-                    logger.error(`Erro ao gerar link de login: ${response.status} - ${response.statusText}`)
+                    logger.error(response, `Erro ao executar ferramenta: ${response.status} - ${response.statusText}`)
                 }
 
                 return JSON.stringify(data);
@@ -159,13 +159,8 @@ export class AgentService {
 
     private createDescriptionTool(tool: ToolConfig): any {
         let description = tool.description;
-        let suffix: string;
         if (tool.highConfirmation) {
-            suffix = `Ferramenta de alta confiabilidade, o agente deve ter pelo menos 75% de certeza para executar a ferramenta.`;
-        } else {
-            suffix = tool.authenticationRequired ? 'Ferramenta necessita de autenticação.' : 'Ferramenta não necessita de autenticação.';
-        }
-        if (suffix) {
+            let suffix = `Ferramenta de alta confiabilidade, o agente deve ter pelo menos 75% de certeza para executar a ferramenta.`;
             description = `${description} - ${suffix}`;
         }
         return description;
