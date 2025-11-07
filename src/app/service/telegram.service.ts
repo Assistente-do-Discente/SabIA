@@ -29,6 +29,7 @@ export class TelegramService {
         const data = await response.json();
 
         this.bot.sendMessage({
+          parse_mode: "MarkdownV2",
           chat_id: message.chat.id,
           text: data.message,
         })
