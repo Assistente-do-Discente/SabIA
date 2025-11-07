@@ -13,6 +13,8 @@ export default async function sessionMiddleware(req: any, res: any, next: any) {
         if (session) {
             await refreshIfNeeded(session);
             (req as any).session = session;
+        } else {
+            (req as any).session = await createSession(sessionId);
         }
     } else {
         (req as any).session = await createSession();

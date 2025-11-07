@@ -17,7 +17,6 @@ export const ENV = {
     URL_API_SABIA: getEnv("URL_API_SABIA", "http://localhost:3000"),
     URL_AUTH_SERVER: getEnv("URL_AUTH_SERVER", "http://localhost:9000"),
     URL_REDIS: getEnv("URL_REDIS", "redis://localhost:6379"),
-    URL_BOT: getEnv("URL_BOT", ""),
 
     OIDC_ISSUER: getEnv("OIDC_ISSUER", "http://localhost:9000"),
     OIDC_CLIENT_ID: getEnv("OIDC_CLIENT_ID", "sabia-agent"),
@@ -30,4 +29,6 @@ export const ENV = {
     SHORTLINK_TTL_SEC: parseInt(getEnv("SHORTLINK_TTL_SEC", "10"), 10),
     TOOLS_TTL_SEC: parseInt(getEnv("TOOLS_TTL_SEC", "10"), 10),
     AGENT_TTL_SEC: parseInt(getEnv("AGENT_TTL_SEC", "10"), 10),
+
+    TELEGRAM_BOT_TOKEN: getEnv("TELEGRAM_BOT_TOKEN", "sabia-agent")
 };

@@ -3,8 +3,13 @@ import { AuthState, SessionDTO } from "../model/session.dto";
 import { ENV } from "../config/env.config";
 import { v4 as uuidv4 } from "uuid";
 
-export async function createSession(): Promise<SessionDTO> {
-    const sessionId = `sess_${uuidv4()}`;
+export async function createSession(chatId?: string): Promise<SessionDTO> {
+    let sessionId;
+    if (chatId) {
+        sessionId = `${chatId}`;
+    } else {
+        sessionId = `sess_${uuidv4()}`;
+    }
     const sessionData: SessionDTO = { sessionId, createdAt: Date.now(), updatedAt: Date.now() };
     await addDataRedis(key.session(sessionId), sessionData, ENV.SESSION_TTL_SEC);
     return sessionData;
