@@ -8,7 +8,7 @@ export class TelegramService {
   static init() {
     if (this.bot) return;
 
-    this.bot = new TelegramBot({ botToken: process.env.TELEGRAM_BOT_TOKEN! });
+    this.bot = new TelegramBot({ botToken: ENV.TELEGRAM_BOT_TOKEN });
     this.bot.startPolling();
 
     logger.info("Telegram bot iniciado.");
@@ -20,7 +20,7 @@ export class TelegramService {
           text: "Olá! Eu sou o SabIA no Telegram 🚀",
         });
       } else {
-        const response = await fetch(`${process.env.URL_API_SABIA}/agent/message?sessionId=${message.chat.id}`, {
+        const response = await fetch(`${process.env.URL_API_SABIA}/agent/message?sessionId=${message.chat.id}&isTelegram=true`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', 'x-api-key': ENV.API_KEY_LOGIN },
           body: JSON.stringify({ message: message.text })
@@ -28,9 +28,10 @@ export class TelegramService {
 
         const data = await response.json();
 
-        this.bot.sendMessage({
+        await this.bot.sendMessage({
           chat_id: message.chat.id,
           text: data.message,
+          parse_mode: 'Markdown'
         })
       }
     });

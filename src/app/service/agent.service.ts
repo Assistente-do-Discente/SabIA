@@ -9,13 +9,14 @@ import {z} from "zod";
 import {AIMessage, HumanMessage} from "@langchain/core/messages";
 import {RedisChatMessageHistory} from "@langchain/redis";
 import {v4 as uuidv4} from "uuid";
-import {prompt} from "../config/prompt";
+import {prompt, TELEGRAM_FORMAT_PROMPT, WHATSAPP_FORMATTING_PROMPT} from "../config/prompt";
 import logger from "../config/logger.config";
 
 type AgentServiceOptions = {
     session?: SessionDTO;
     tools?: Array<ToolConfig>;
     apiKeyLogin?: string;
+    isTelegram: boolean;
 };
 
 export class AgentService {
@@ -26,12 +27,14 @@ export class AgentService {
     private readonly sessionId: string;
     private readonly messageHistory: RedisChatMessageHistory;
     private readonly prompt: string = prompt;
+    private readonly promptComplementation: string;
 
     constructor(opts: AgentServiceOptions) {
         this.session = opts.session;
         this.tools = opts.tools;
         this.apiKeyLogin = opts.apiKeyLogin;
         this.sessionId = this.session?.sessionId || uuidv4();
+        this.promptComplementation = opts.isTelegram ? TELEGRAM_FORMAT_PROMPT : WHATSAPP_FORMATTING_PROMPT
         this.messageHistory = new RedisChatMessageHistory({
             sessionId: this.sessionId,
             sessionTTL: ENV.AGENT_TTL_SEC,
@@ -66,7 +69,7 @@ export class AgentService {
         return createReactAgent({
             llm: this.createLLM(),
             tools: this.createTools(),
-            messageModifier: this.prompt
+            messageModifier: this.prompt + this.promptComplementation
         });
     }
 
@@ -76,8 +79,8 @@ export class AgentService {
 
     private createTools(): Array<StructuredToolInterface> {
         let mountedTools: Array<any> = new Array<any>()
-        mountedTools.push(this.createDateTool())
         mountedTools.push(this.createLoginTool())
+        mountedTools.push(...this.createDateTools())
         mountedTools.push(...this.createMathTools())
 
         if (this.tools && Array.isArray(this.tools)) {
@@ -180,6 +183,8 @@ export class AgentService {
                     const data = await response.json();
                     if (response.status !== 200) {
                         logger.error(`Erro ao gerar link de login: ${response.status} - ${response.statusText}`)
+                    } else {
+                        logger.info(`Ferramenta generateLoginLink executada: ${data.shortUrl}`);
                     }
                     return JSON.stringify(data);
                 } catch (error: any) {
@@ -189,15 +194,56 @@ export class AgentService {
         });
     }
 
-    private createDateTool(): any {
-        return  new DynamicStructuredTool({
+    private createDateTools(): Array<any> {
+        let dateTools: Array<any> = new Array<any>();
+        dateTools.push(new DynamicStructuredTool({
             name: "getActualDate",
-            description: "Utilize essa ferramanta para quando precisar saber qual a data e hora atual, sempre que o usuário escrever 'hoje', 'amanhã', ou 'ontem', utilize essa ferramenta para saber o dia atual, e com base no dia atual saber quais são os outros dias.",
+            description: `
+            Use esta ferramenta sempre que precisar obter a data e hora atuais do sistema, bem como o dia da semana correspondente.
+            Esta ferramenta deve ser utilizada quando o usuário mencionar termos como 'hoje', 'agora', 'data atual', 'dia de hoje' ou quando precisar calcular datas relativas como 'amanhã' e 'ontem'.
+            Retorna a data no formato ISO (YYYY-MM-DDTHH:mm:ss.sssZ) e o dia da semana abreviado no padrão brasileiro (DOM, SEG, TER, QUA, QUI, SEX, SAB).
+             `,
             schema: z.object({}),
-            func: async ({}: any) => {
-                return JSON.stringify({ actualDate: new Date().toISOString() });
+            func: async () => {
+                const now = new Date();
+
+                const dias = ["DOM", "SEG", "TER", "QUA", "QUI", "SEX", "SAB"];
+                const diaSemana = dias[now.getDay()+1];
+
+                logger.info(`Executando ferramenta 'getActualDate' retornando data: ${now.toISOString()} e weekday: ${diaSemana}`)
+                return JSON.stringify({
+                    actualDate: now.toISOString(),
+                    weekday: diaSemana
+                });
             },
-        });
+        }));
+
+        dateTools.push(new DynamicStructuredTool({
+            name: "getWeekdayFromDate",
+            description: `
+            Use esta ferramenta quando precisar identificar o dia da semana correspondente a uma data específica informada pelo usuário.
+            Esta ferramenta deve ser utilizada somente quando o usuário fornecer explicitamente uma data (por exemplo: 'que dia da semana cai 10/11/2025?' ou 'qual o dia da semana de 2026-01-03?').
+            A data deve ser informada no formato ISO (YYYY-MM-DD).
+            A ferramenta retorna a data convertida para ISO completo e o dia da semana abreviado no padrão brasileiro (DOM, SEG, TER, QUA, QUI, SEX, SAB).
+            `,
+            schema: z.object({
+                date: z.string().describe("Data no formato ISO, como '2025-11-10'")
+            }),
+            func: async ({ date }) => {
+                const inputDate = new Date(date);
+
+                const dias = ["DOM", "SEG", "TER", "QUA", "QUI", "SEX", "SAB"];
+                const diaSemana = dias[inputDate.getDay()+1];
+
+                logger.info(`Executando ferramenta 'getActualDate' com date = ${inputDate.toISOString()} encontrado o dia da semana ${diaSemana}`);
+                return JSON.stringify({
+                    inputDate: inputDate.toISOString(),
+                    weekday: diaSemana
+                });
+            },
+        }));
+
+        return dateTools;
     }
 
     private createMathTools(): Array<any> {
@@ -210,6 +256,7 @@ export class AgentService {
                 b: z.number().describe("o segundo número a somar"),
             }),
             func: async ({ a, b }: { a: number; b: number }) => {
+                logger.info(`Executando ferramenta 'sumNumbers' com: a = ${a} e b = ${b} = ${a + b}`)
                 return (a + b).toString();
             },
         }));
@@ -222,6 +269,7 @@ export class AgentService {
                 b: z.number().describe("o número que será subtraído"),
             }),
             func: async ({ a, b }: { a: number; b: number }) => {
+                logger.info(`Executando ferramenta 'subtractNumbers' com: a = ${a} e b = ${b} = ${a - b}`)
                 return (a - b).toString();
             },
         }));
@@ -234,13 +282,14 @@ export class AgentService {
                 b: z.number().describe("o segundo número a multiplicar"),
             }),
             func: async ({ a, b }: { a: number; b: number }) => {
+                logger.info(`Executando ferramenta 'multiplyNumbers' com: a = ${a} e b = ${b} = ${a * b}`)
                 return (a * b).toString();
             },
         }));
 
         mathTools.push(new DynamicStructuredTool({
             name: "divideNumbers",
-            description: "divide o primeiro número pelo segundo",
+            description: "realiza a divisão do primeiro número pelo segundo",
             schema: z.object({
                 a: z.number().describe("o número que será dividido"),
                 b: z.number().describe("o divisor (não pode ser zero)"),
@@ -249,6 +298,7 @@ export class AgentService {
                 if (b === 0) {
                     return "Divisão por zero não é permitida";
                 }
+                logger.info(`Executando ferramenta 'divideNumbers' com: a = ${a} e b = ${b} = ${a / b}`)
                 return (a / b).toString();
             },
         }));
