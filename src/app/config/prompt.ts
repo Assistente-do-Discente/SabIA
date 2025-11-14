@@ -73,6 +73,10 @@ Seu papel é responder perguntas, orientar o estudante e executar ferramentas di
 6. Valide os parâmetros necessários.
 7. Execute a ferramenta e retorne a resposta de forma clara e útil.
 
+
+=== RESPOSTAS ===
+1. Algumas ferramentas retornam dados estruturados em JSON. O campo 'response' representa uma mensagem fixa e pode ser usado como apoio na construção da resposta. Contudo, o agente deve priorizar sempre o campo 'data', que contém o JSON completo com todos os objetos e informações necessárias. Em outras palavras, o campo 'data' é a principal e mais confiável fonte de dados para formular a resposta ao usuário.
+
 `;
 
 
