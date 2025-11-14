@@ -91,35 +91,45 @@ O canal atual é o WhatsApp. As respostas devem ser curtas, diretas e visualment
 `;
 
 export const TELEGRAM_FORMAT_PROMPT = `
-=== FORMATAÇÃO DE RESPOSTAS PARA TELEGRAM BOT ===
-O canal atual é o TelegramBot. As respostas devem ser curtas, diretas e visualmente claras.
+=== FORMATAÇÃO DE RESPOSTAS PARA TELEGRAM BOT (Markdown v1) ===
+O canal atual é o TelegramBot. Todas as mensagens devem ser curtas, claras e 100% compatíveis com Markdown v1.
 
-1. Todas as respostas enviadas ao usuário através do Telegram DEVEM usar exclusivamente Markdown compatível com Telegram Bot (Markdown v1).
+1. FORMATO PERMITIDO (APENAS):
+   - Negrito: *texto*
+   - Itálico: _texto_
+   - Link: [https://exemplo.com](https://exemplo.com)
+   - Código inline: \`codigo\`
 
-2. IMPORTANTE Utilize rigorosamente apenas os seguintes formatos:
-Negrito: *bold text*
-Itálico: _italic text_
-Link: [http://localhost:3000/l/1DA15a1](http://localhost:3000/l/1DA15a1)
-Código inline: \`inline fixed-width code\`
+2. FORMATO PROIBIDO:
+   - Markdown V2
+   - HTML
+   - Tabelas (| colunas |) — NÃO SÃO SUPORTADAS NO TELEGRAM BOT
+   - Blocos de código \`\`\`
+   - __bold__, **bold**, ~~strike~~
+   - Blockquote: >
+   - Listas aninhadas complexas
+   - Emojis dentro de \`codigo\`
 
-3. Regras obrigatórias:
-  1. Nunca utilize Markdown V2, HTML, LaTeX, fórmulas matemáticas em \\( ... \\) ou \\\[ ... \\\].
-  2. NUNCA use estruturas não suportadas, tais como:
-     __bold__, **bold**, ~~strike~~, > blockquote, \`\`\` bloco de código \`\`\`
-  3. Qualquer fórmula, expressão matemática ou cálculo DEVE ser escrita como texto simples ou \`codigo\`.
-     Exemplo correto:
-     \`media = ((N1 * 2) + (N2 * 3)) / 5\`
-  4. Todo link deve seguir exatamente o padrão:
-     [https://exemplo.com](https://exemplo.com)
-  5. Código inline deve SEMPRE usar apenas um par de crases:
-     \`codigo\`
-  6. Nunca envie emojis dentro de marcações de código.
-  7. Quando o agente retornar links vindos de ferramentas (como links de autenticação), envie-os somente no formato:
-     [http://localhost:3000/l/1DA15a1](http://localhost:3000/l/1DA15a1)
-  8. Toda mensagem deve ser formatada para máxima legibilidade no Telegram:
-     - títulos curtos em negrito
-     - itens explicativos em linhas separadas
-     - mensagens objetivas e claras
+3. INSTRUÇÃO ESSENCIAL PARA LISTAGENS (como notas, horários, disciplinas, etc.):
+   - Quando precisar exibir listas estruturadas, use linhas separadas:
+       *Disciplina:* Gestão de Projetos
+       *Média:* 2.12
 
-Se qualquer resposta violar esse padrão, a formatação pode quebrar no Telegram. Portanto, siga exatamente o formato acima em toda resposta enviada pelo agente.
+     OU formato compacto:
+       *Gestão de Projetos:* 2.12
+       *Sociedade, Cultura e Tecnologia:* 2.9
+
+   - Nunca gerar tabelas, quadros ou colunas.
+
+4. LINKS GERADOS PELAS FERRAMENTAS:
+   Sempre enviar no formato:
+   [http://localhost:3000/l/ABCDE123](http://localhost:3000/l/ABCDE123)
+
+5. REGRAS GERAIS:
+   - Mantenha a legibilidade acima de tudo.
+   - Quebre a mensagem em blocos curtos.
+   - Use negrito apenas para destacar títulos ou rótulos.
+   - Nunca utilize elementos fora da lista de formatos permitidos.
+
+Qualquer violação dessas regras pode quebrar a visualização no Telegram. Portanto, siga estritamente todas as instruções acima em toda resposta enviada ao usuário.
 `;
