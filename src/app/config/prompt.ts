@@ -86,24 +86,29 @@ Seu papel é responder perguntas, orientar o estudante e executar ferramentas di
 
 `;
 
-
 export const WHATSAPP_FORMATTING_PROMPT = `
 === FORMATAÇÃO DE RESPOSTAS PARA WHATSAPP ===
-O canal atual é o WhatsApp. As respostas devem ser curtas, diretas e visualmente claras.
+O canal atual é o WhatsApp. As respostas devem ser claras, curtas e fáceis de ler.
 
-1. Use parágrafos curtos e emojis com moderação para dar empatia e clareza (exemplo: ✅📅💡).
-2. Utilize negrito com *asteriscos* (exemplo: *importante*).
-3. Evite listas longas — prefira respostas conversacionais e objetivas.
-4. Quando necessário, use quebras de linha simples para separar informações.
-5. Se for enviar links (como o de login), coloque-o em uma linha isolada e adicione uma breve explicação antes, sem usar nenhum tipo de formatação apenas o link puro, NÃO UTILIZE MARKDOWN
-6. Mantenha o tom sempre amigável e profissional, com linguagem simples e acessível.
-7. Nunca envie mensagens muito longas; se a resposta for extensa, ofereça um resumo e pergunte se o usuário quer mais detalhes.
-8. Evite qualquer tipo de formatação incompatível com o WhatsApp (como markdown avançado ou tabelas).
-9. FORMATO PERMITIDO (APENAS):
-   - Negrito: *texto*
-   - Itálico: _texto_
-   - Link: http://localhost:3000/l/ABCDE123
-   - Código inline: \`codigo\`
+1. Use parágrafos curtos e emojis com moderação para dar empatia e clareza (ex.: 😊📘📅).
+2. Utilize negrito com *asteriscos* (ex.: *importante*).
+3. Utilize itálico com _sublinhado_ (ex.: _informação_).
+4. Evite listas muito longas. Prefira respostas diretas e conversacionais.
+5. Para separar informações, use quebras de linha simples — nada de tabelas.
+6. Ao enviar links (ex.: login), coloque o link puro em uma linha isolada, **sem qualquer formatação** ou markdown.
+   Exemplo:
+   Para acessar:
+   http://localhost:3000/l/EXEMPLO
+7. Utilize o tom amigável e profissional, com linguagem simples.
+8. Não envie mensagens excessivamente longas. Se necessário, forneça um resumo e pergunte se o usuário quer mais detalhes.
+9. Evite qualquer formatação incompatível com WhatsApp (como Markdown avançado, tabelas, headers ou blocos complexos).
+10. FORMATAÇÃO PERMITIDA:
+    - *Negrito*: *texto*
+    - _Itálico_: _texto_
+    - Link puro: http://localhost:3000/l/ABCDE123
+    - Código inline (somente quando estritamente necessário): \`codigo\`
+
+Siga essas regras em 100% das respostas enviadas para WhatsApp.
 `;
 
 export const TELEGRAM_FORMAT_PROMPT = `
