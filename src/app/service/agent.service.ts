@@ -79,9 +79,12 @@ export class AgentService {
 
     private createTools(): Array<StructuredToolInterface> {
         let mountedTools: Array<any> = new Array<any>()
-        mountedTools.push(this.createLoginTool())
         mountedTools.push(...this.createDateTools())
         mountedTools.push(...this.createMathTools())
+
+        if (!this.session || !this.session?.accessToken) {
+            mountedTools.push(this.createLoginTool())
+        }
 
         if (this.tools && Array.isArray(this.tools)) {
             for (let tool of this.tools) {
